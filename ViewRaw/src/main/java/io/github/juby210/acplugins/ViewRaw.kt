@@ -132,15 +132,22 @@ class ViewRaw : Plugin() {
             val binding = getBinding.invoke(it.thisObject) as WidgetChatListActionsBinding
             val copyRaw = binding.root.findViewById<TextView>(copyRawId)
             copyRaw.setOnClickListener { _ ->
-            val esMessage = (it.args[0] as WidgetChatListActions.Model).message.content
-            val unesMessage = unescapeUnicode(esMessage)
+            val esMessage = (it.args[0] as WidgetChatListActions.Model).message
+            val unescapeUnicodeText: (Any) -> String = { message ->
+    val jsonString = GsonUtils.toJsonPretty(message)
+    jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
+        val codePoint = matchResult.groupValues[1].toInt(16)
+        codePoint.toChar().toString()
+    }
+}
+            val unesMessage = unescapeUnicodeText(esMessage)
             val sendIntent: Intent = Intent().apply {
                 action = Intent.ACTION_SEND
                putExtra(Intent.EXTRA_TEXT, unesMessage)
                type = "text/plain"
               }
             val shareIntent = Intent.createChooser(sendIntent, null)
-            view.context.startActivity(shareIntent)
+            _.context.startActivity(shareIntent)
 
                 Utils.setClipboard("Copy Raw", esMessage)
                 Utils.showToast("Copied content to clipboard!")
