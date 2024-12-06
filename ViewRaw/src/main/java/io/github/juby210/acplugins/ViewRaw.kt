@@ -1,8 +1,11 @@
 package io.github.juby210.acplugins
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
 import android.text.SpannableStringBuilder
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -55,7 +58,7 @@ class ViewRaw : Plugin() {
             layout.addView(LinearLayout(context).apply {
                 setPadding(0, 0, 0, 12.dp)
                 addView(Button(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply {
                         weight = 1f
                         marginEnd = 3.dp
                     }
@@ -69,7 +72,7 @@ class ViewRaw : Plugin() {
                     }
                 })
                 addView(Button(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply {
                         weight = 1f
                         marginStart = 3.dp
                     }
