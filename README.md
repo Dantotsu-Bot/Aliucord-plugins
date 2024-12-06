@@ -82,5 +82,5 @@ TODO:
 - custom format
 - first message
 
-### [ViewRaw](https://github.com/Juby210/Aliucord-plugins/raw/builds/ViewRaw.zip)
+### [ViewRaw](https://github.com/Dantotsu-Bot/Aliucord-plugins/raw/builds/ViewRaw.zip)
 View & Copy raw message and markdown.
