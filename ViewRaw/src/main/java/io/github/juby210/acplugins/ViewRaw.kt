@@ -1,8 +1,3 @@
-/*
- * Copyright (c) 2021 Juby210
- * Licensed under the Open Software License version 3.0
- */
-
 package io.github.juby210.acplugins
 
 import android.annotation.SuppressLint
@@ -13,20 +8,16 @@ import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.widget.NestedScrollView
 import com.aliucord.Constants
 import com.aliucord.Utils
 import com.aliucord.annotations.AliucordPlugin
 import com.aliucord.entities.Plugin
 import com.aliucord.fragments.SettingsPage
 import com.aliucord.patcher.Hook
-import com.aliucord.utils.DimenUtils.dp
 import com.aliucord.utils.GsonUtils
-import com.aliucord.utils.MDUtils
 import com.aliucord.views.Button
 import com.aliucord.views.Divider
 import com.discord.databinding.WidgetChatListActionsBinding
@@ -44,6 +35,15 @@ class ViewRaw : Plugin() {
         needsResources = true
     }
 
+    // Helper function to unescape unicode
+    fun unescapeUnicode(message: Any): String {
+        val jsonString = GsonUtils.toJsonPretty(message)
+        return jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
+            val codePoint = matchResult.groupValues[1].toInt(16)
+            codePoint.toChar().toString()
+        }
+    }
+
     class Page(private val message: Message) : SettingsPage() {
         override fun onViewBound(view: View) {
             super.onViewBound(view)
@@ -55,15 +55,15 @@ class ViewRaw : Plugin() {
             val layout = linearLayout
 
             val content = message.content
-
             val icon = ContextCompat.getDrawable(context, R.e.ic_copy_24dp)?.apply {
                 mutate()
                 setTint(ColorCompat.getThemedColor(context, R.b.colorInteractiveNormal))
             }
+
             layout.addView(LinearLayout(context).apply {
                 setPadding(0, 0, 0, 12.dp)
                 addView(Button(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                         weight = 1f
                         marginEnd = 3.dp
                     }
@@ -77,28 +77,39 @@ class ViewRaw : Plugin() {
                     }
                 })
                 addView(Button(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                         weight = 1f
                         marginStart = 3.dp
                     }
                     text = "Raw Data"
-                    contentDescription = "Copy Raw Data"
+                    contentDescription = "Share Raw Data"
                     setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null)
                     setOnClickListener {
-                        Utils.setClipboard("Copy Data", GsonUtils.toJsonPretty(message))
-                        Utils.showToast("Copied data to clipboard!")
+                        // Get the message object
+                        val message = (it.args[0] as WidgetChatListActions.Model).message
+                        val unescapedMessageJson = unescapeUnicode(message)
+
+                        // Create the share intent
+                        val sendIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            putExtra(Intent.EXTRA_TEXT, unescapedMessageJson) // Share the unescaped message data
+                            type = "text/plain"
+                        }
+
+                        // Create a chooser to let the user select an app
+                        val chooser = Intent.createChooser(sendIntent, "Share via")
+                        // Start the sharing activity
+                        view.context.startActivity(chooser)
+
+                        // Show toast message
+                        Utils.showToast("Sharing content!")
+                        // Dismiss the WidgetChatListActions
+                        (it.thisObject as WidgetChatListActions).dismiss()
                     }
                 })
             })
-            
-     fun unescapeUnicode(message: Any): String {
-          val jsonString = GsonUtils.toJsonPretty(message)           
-          return jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
-          val codePoint = matchResult.groupValues[1].toInt(16)
-          codePoint.toChar().toString()
-    }
- }
-            
+
+            // Render content and raw data
             if (!content.isNullOrEmpty()) {
                 layout.addView(TextView(context).apply {
                     text = MDUtils.renderCodeBlock(context, SpannableStringBuilder(), null, content)
@@ -109,7 +120,6 @@ class ViewRaw : Plugin() {
 
             layout.addView(TextView(context, null, 0, R.i.UiKit_Settings_Item_Header).apply {
                 text = "All Raw Data"
-                typeface = ResourcesCompat.getFont(context, Constants.Fonts.whitney_semibold)
                 setPadding(0, paddingTop, paddingRight, paddingBottom)
             })
             layout.addView(TextView(context).apply {
@@ -133,23 +143,10 @@ class ViewRaw : Plugin() {
 
         patcher.patch(c.getDeclaredMethod("configureUI", WidgetChatListActions.Model::class.java), Hook {
             val binding = getBinding.invoke(it.thisObject) as WidgetChatListActionsBinding
-            copyRaw.setOnClickListener { _ ->
-            val message = (it.args[0] as WidgetChatListActions.Model).message
-            val unescapedMessageJson = unescapeUnicode(message)
-
-            val sendIntent = Intent().apply {
-                action = Intent.ACTION_SEND
-                putExtra(Intent.EXTRA_TEXT, unescapedMessageJson)
-                type = "text/plain"
-            }
-
-            val chooser = Intent.createChooser(sendIntent, "Share via")
-            startActivity(chooser)
-
-            Utils.showToast("Sharing content!")
-            (it.thisObject as WidgetChatListActions).dismiss()
-        }
+            val copyRaw = binding.root.findViewById<TextView>(copyRawId)
             val viewRaw = binding.root.findViewById<TextView>(viewRawId)
+
+            // Add the raw data share functionality
             viewRaw.setOnClickListener { e ->
                 Utils.openPageWithProxy(e.context, Page((it.args[0] as WidgetChatListActions.Model).message))
                 (it.thisObject as WidgetChatListActions).dismiss()
@@ -162,7 +159,7 @@ class ViewRaw : Plugin() {
 
             linearLayout.addView(TextView(context, null, 0, R.i.UiKit_Settings_Item_Icon).apply {
                 id = copyRawId
-                text = "Share Raw"
+                text = "Copy Raw"
                 context.getDrawable(R.e.ic_copy_24dp)?.run {
                     mutate()
                     setTint(ColorCompat.getThemedColor(context, R.b.colorInteractiveNormal))
