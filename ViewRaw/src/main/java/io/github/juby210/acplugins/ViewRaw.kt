@@ -10,13 +10,10 @@ import android.content.Context
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
-import android.view.ViewGroup
 import android.widget.LinearLayout
-import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.widget.NestedScrollView
 import com.aliucord.Constants
 import com.aliucord.Utils
 import com.aliucord.annotations.AliucordPlugin
@@ -24,15 +21,12 @@ import com.aliucord.entities.Plugin
 import com.aliucord.fragments.SettingsPage
 import com.aliucord.patcher.Hook
 import com.aliucord.utils.DimenUtils.dp
-import com.aliucord.utils.GsonUtils
 import com.aliucord.utils.MDUtils
 import com.aliucord.views.Button
 import com.aliucord.views.Divider
-import com.discord.databinding.WidgetChatListActionsBinding
 import com.discord.models.message.Message
 import com.discord.models.user.CoreUser
 import com.discord.utilities.color.ColorCompat
-import com.discord.widgets.chat.list.actions.WidgetChatListActions
 import com.lytefast.flexinput.R
 
 @AliucordPlugin
@@ -84,7 +78,7 @@ class ViewRaw : Plugin() {
                     contentDescription = "Copy Raw Data"
                     setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null)
                     setOnClickListener {
-                        Utils.setClipboard("Copy Data", GsonUtils.toJsonPretty(message))
+                        Utils.setClipboard("Copy Data", prettyPrint(decodeMessage(message)))
                         Utils.showToast("Copied data to clipboard!")
                     }
                 })
@@ -104,10 +98,9 @@ class ViewRaw : Plugin() {
                 setPadding(0, paddingTop, paddingRight, paddingBottom)
             })
 
-            // Decode and render raw data with decoded URLs
             layout.addView(TextView(context).apply {
                 val decodedMessage = decodeMessage(message)
-                val prettyJson = GsonBuilder().setPrettyPrinting().create().toJson(decodedMessage)
+                val prettyJson = prettyPrint(decodedMessage)
                 text = MDUtils.renderCodeBlock(context, SpannableStringBuilder(), "js", prettyJson)
                 setTextIsSelectable(true)
             })
@@ -127,6 +120,40 @@ class ViewRaw : Plugin() {
                 value.replace("\\u003d", "=").replace("\\u0026", "&")
             } else {
                 value
+            }
+        }
+
+        private fun prettyPrint(data: Any?): String {
+            val builder = StringBuilder()
+            prettyPrintHelper(data, builder, 0)
+            return builder.toString()
+        }
+
+        private fun prettyPrintHelper(data: Any?, builder: StringBuilder, indent: Int) {
+            val indentation = " ".repeat(indent * 2)
+            when (data) {
+                is Map<*, *> -> {
+                    builder.append("{\n")
+                    data.entries.forEach { (key, value) ->
+                        builder.append(indentation).append("  \"$key\": ")
+                        prettyPrintHelper(value, builder, indent + 1)
+                        builder.append(",\n")
+                    }
+                    if (data.isNotEmpty()) builder.setLength(builder.length - 2) // Remove trailing comma
+                    builder.append("\n$indentation}")
+                }
+                is List<*> -> {
+                    builder.append("[\n")
+                    data.forEach {
+                        builder.append(indentation).append("  ")
+                        prettyPrintHelper(it, builder, indent + 1)
+                        builder.append(",\n")
+                    }
+                    if (data.isNotEmpty()) builder.setLength(builder.length - 2) // Remove trailing comma
+                    builder.append("\n$indentation]")
+                }
+                is String -> builder.append("\"").append(data.replace("\"", "\\\"")).append("\"")
+                else -> builder.append(data)
             }
         }
     }
