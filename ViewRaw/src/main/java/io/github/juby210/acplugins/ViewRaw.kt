@@ -103,10 +103,31 @@ class ViewRaw : Plugin() {
                 typeface = ResourcesCompat.getFont(context, Constants.Fonts.whitney_semibold)
                 setPadding(0, paddingTop, paddingRight, paddingBottom)
             })
+
+            // Decode and render raw data with decoded URLs
             layout.addView(TextView(context).apply {
-                text = MDUtils.renderCodeBlock(context, SpannableStringBuilder(), "js", GsonUtils.toJsonPretty(message))
+                val decodedMessage = decodeMessage(message)
+                val prettyJson = GsonBuilder().setPrettyPrinting().create().toJson(decodedMessage)
+                text = MDUtils.renderCodeBlock(context, SpannableStringBuilder(), "js", prettyJson)
                 setTextIsSelectable(true)
             })
+        }
+
+        private fun decodeMessage(data: Any?): Any? {
+            return when (data) {
+                is Map<*, *> -> data.mapValues { decodeMessage(it.value) }
+                is List<*> -> data.map { decodeMessage(it) }
+                is String -> decodeUrlIfNeeded(data)
+                else -> data
+            }
+        }
+
+        private fun decodeUrlIfNeeded(value: String): String {
+            return if (value.contains("\\u003d") || value.contains("\\u0026")) {
+                value.replace("\\u003d", "=").replace("\\u0026", "&")
+            } else {
+                value
+            }
         }
     }
 
