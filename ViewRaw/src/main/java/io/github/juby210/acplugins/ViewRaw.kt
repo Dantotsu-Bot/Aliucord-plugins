@@ -7,6 +7,7 @@ package io.github.juby210.acplugins
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
@@ -132,12 +133,22 @@ class ViewRaw : Plugin() {
 
         patcher.patch(c.getDeclaredMethod("configureUI", WidgetChatListActions.Model::class.java), Hook {
             val binding = getBinding.invoke(it.thisObject) as WidgetChatListActionsBinding
-            val copyRaw = binding.root.findViewById<TextView>(copyRawId)
             copyRaw.setOnClickListener { _ ->
-                Utils.setClipboard("Copy Raw", (it.args[0] as WidgetChatListActions.Model).message.content)
-                Utils.showToast("Copied content to clipboard!")
-                (it.thisObject as WidgetChatListActions).dismiss()
+            val message = (it.args[0] as WidgetChatListActions.Model).message
+            val unescapedMessageJson = unescapeUnicode(message)
+
+            val sendIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_TEXT, unescapedMessageJson)
+                type = "text/plain"
             }
+
+            val chooser = Intent.createChooser(sendIntent, "Share via")
+            startActivity(chooser)
+
+            Utils.showToast("Sharing content!")
+            (it.thisObject as WidgetChatListActions).dismiss()
+        }
             val viewRaw = binding.root.findViewById<TextView>(viewRawId)
             viewRaw.setOnClickListener { e ->
                 Utils.openPageWithProxy(e.context, Page((it.args[0] as WidgetChatListActions.Model).message))
@@ -151,7 +162,7 @@ class ViewRaw : Plugin() {
 
             linearLayout.addView(TextView(context, null, 0, R.i.UiKit_Settings_Item_Icon).apply {
                 id = copyRawId
-                text = "Copy Raw"
+                text = "Share Raw"
                 context.getDrawable(R.e.ic_copy_24dp)?.run {
                     mutate()
                     setTint(ColorCompat.getThemedColor(context, R.b.colorInteractiveNormal))
