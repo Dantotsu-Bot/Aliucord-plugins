@@ -4,10 +4,11 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.SpannableStringBuilder
 import android.view.View
 import android.view.ViewGroup
-import android.text.SpannableStringBuilder
 import android.widget.LinearLayout
+import android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
@@ -29,8 +30,6 @@ import com.discord.models.user.CoreUser
 import com.discord.utilities.color.ColorCompat
 import com.discord.widgets.chat.list.actions.WidgetChatListActions
 import com.lytefast.flexinput.R
-import android.content.ClipboardManager
-import androidx.core.app.ShareCompat
 
 @AliucordPlugin
 @Suppress("unused")
@@ -51,6 +50,7 @@ class ViewRaw : Plugin() {
             val layout = linearLayout
 
             val content = message.content
+
             val icon = ContextCompat.getDrawable(context, R.e.ic_copy_24dp)?.apply {
                 mutate()
                 setTint(ColorCompat.getThemedColor(context, R.b.colorInteractiveNormal))
@@ -80,16 +80,13 @@ class ViewRaw : Plugin() {
                     contentDescription = "Copy Raw Data"
                     setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null)
                     setOnClickListener {
-                        val unescapedMessageJson = unescapeUnicode(message)
-                        val intent = ShareCompat.IntentBuilder.from(view.context as Activity)
-                            .setType("application/json")
-                            .setChooserTitle("Share Raw Data")
-                            .setText(unescapedMessageJson)
-                            .intent
-                        view.context.startActivity(Intent.createChooser(intent, "Share Raw Data"))
+                        Utils.setClipboard("Copy Data", GsonUtils.toJsonPretty(message))
+                        Utils.showToast("Copied data to clipboard!")
                     }
                 })
             })
+            
+     
             
             if (!content.isNullOrEmpty()) {
                 layout.addView(TextView(context).apply {
@@ -111,13 +108,13 @@ class ViewRaw : Plugin() {
         }
     }
 
-    private fun unescapeUnicode(message: Any): String {
-        val jsonString = GsonUtils.toJsonPretty(message)           
-        return jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
-            val codePoint = matchResult.groupValues[1].toInt(16)
-            codePoint.toChar().toString()
-        }
+  fun unescapeUnicode(message: Any): String {
+          val jsonString = GsonUtils.toJsonPretty(message)           
+          return jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
+          val codePoint = matchResult.groupValues[1].toInt(16)
+          codePoint.toChar().toString()
     }
+ }
 
     override fun start(ctx: Context) {
         val icon = ResourcesCompat.getDrawable(
@@ -135,7 +132,17 @@ class ViewRaw : Plugin() {
             val binding = getBinding.invoke(it.thisObject) as WidgetChatListActionsBinding
             val copyRaw = binding.root.findViewById<TextView>(copyRawId)
             copyRaw.setOnClickListener { _ ->
-                Utils.setClipboard("Copy Raw", (it.args[0] as WidgetChatListActions.Model).message.content)
+            val esMessage = (it.args[0] as WidgetChatListActions.Model).message.content
+            val unesMessage = unescapeUnicode(esMessage)
+            val sendIntent: Intent = Intent().apply {
+                action = Intent.ACTION_SEND
+               putExtra(Intent.EXTRA_TEXT, unesMessage)
+               type = "text/plain"
+              }
+            val shareIntent = Intent.createChooser(sendIntent, null)
+            view.context.startActivity(shareIntent)
+
+                Utils.setClipboard("Copy Raw", esMessage)
                 Utils.showToast("Copied content to clipboard!")
                 (it.thisObject as WidgetChatListActions).dismiss()
             }
