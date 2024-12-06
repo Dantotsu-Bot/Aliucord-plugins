@@ -89,7 +89,15 @@ class ViewRaw : Plugin() {
                     }
                 })
             })
-
+            
+     fun unescapeUnicode(message: Any): String {
+          val jsonString = GsonUtils.toJsonPretty(message)           
+          return jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
+          val codePoint = matchResult.groupValues[1].toInt(16)
+          codePoint.toChar().toString()
+    }
+ }
+            
             if (!content.isNullOrEmpty()) {
                 layout.addView(TextView(context).apply {
                     text = MDUtils.renderCodeBlock(context, SpannableStringBuilder(), null, content)
@@ -104,7 +112,7 @@ class ViewRaw : Plugin() {
                 setPadding(0, paddingTop, paddingRight, paddingBottom)
             })
             layout.addView(TextView(context).apply {
-                text = MDUtils.renderCodeBlock(context, SpannableStringBuilder(), "js", String(GsonUtils.toJsonPretty(message).toByteArray(Charsets.ISO_8859_1)))
+                text = MDUtils.renderCodeBlock(context, SpannableStringBuilder(), "js", unescapeUnicode(message))
                 setTextIsSelectable(true)
             })
         }
