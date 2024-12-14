@@ -1,8 +1,12 @@
+/*
+ * Copyright (c) 2021 Juby210
+ * Licensed under the Open Software License version 3.0
+ */
+
 package io.github.juby210.acplugins
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.view.View
@@ -28,6 +32,7 @@ import com.discord.databinding.WidgetChatListActionsBinding
 import com.discord.models.message.Message
 import com.discord.models.user.CoreUser
 import com.discord.utilities.color.ColorCompat
+import com.discord.utilities.intent.IntentUtils
 import com.discord.widgets.chat.list.actions.WidgetChatListActions
 import com.lytefast.flexinput.R
 
@@ -86,7 +91,13 @@ class ViewRaw : Plugin() {
                 })
             })
             
-     
+     fun unescapeUnicode(message: Any): String {
+          val jsonString = GsonUtils.toJsonPretty(message)           
+          return jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
+          val codePoint = matchResult.groupValues[1].toInt(16)
+          codePoint.toChar().toString()
+    }
+ }
             
             if (!content.isNullOrEmpty()) {
                 layout.addView(TextView(context).apply {
@@ -108,21 +119,13 @@ class ViewRaw : Plugin() {
         }
     }
 
-  fun unescapeUnicode(message: Any): String {
-          val jsonString = GsonUtils.toJsonPretty(message)           
-          return jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
-          val codePoint = matchResult.groupValues[1].toInt(16)
-          codePoint.toChar().toString()
-    }
- }
-
     override fun start(ctx: Context) {
         val icon = ResourcesCompat.getDrawable(
             resources,
             resources.getIdentifier("ic_viewraw", "drawable", "io.github.juby210.acplugins"), null
         ) ?: ctx.resources.getDrawable(R.e.design_password_eye, null).mutate()
 
-        val copyRawId = View.generateViewId()
+        val shareRawId = View.generateViewId()
         val viewRawId = View.generateViewId()
 
         val c = WidgetChatListActions::class.java
@@ -130,27 +133,9 @@ class ViewRaw : Plugin() {
 
         patcher.patch(c.getDeclaredMethod("configureUI", WidgetChatListActions.Model::class.java), Hook {
             val binding = getBinding.invoke(it.thisObject) as WidgetChatListActionsBinding
-            val copyRaw = binding.root.findViewById<TextView>(copyRawId)
-            copyRaw.setOnClickListener { _ ->
-            val esMessage = (it.args[0] as WidgetChatListActions.Model).message
-            val unescapeUnicodeText: (Any) -> String = { message ->
-    val jsonString = GsonUtils.toJsonPretty(message)
-    jsonString.replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
-        val codePoint = matchResult.groupValues[1].toInt(16)
-        codePoint.toChar().toString()
-    }
-}
-            val unesMessage = unescapeUnicodeText(esMessage)
-            val sendIntent: Intent = Intent().apply {
-                action = Intent.ACTION_SEND
-               putExtra(Intent.EXTRA_TEXT, unesMessage)
-               type = "text/plain"
-              }
-            val shareIntent = Intent.createChooser(sendIntent, null)
-            _.context.startActivity(shareIntent)
-
-                Utils.setClipboard("Copy Raw", esMessage)
-                Utils.showToast("Copied content to clipboard!")
+            val shareRaw = binding.root.findViewById<TextView>(shareRawId)
+            shareRaw.setOnClickListener { _ ->
+                IntentUtils.performChooserSendIntent$default(obj.getContext(), (it.args[0] as WidgetChatListActions.Model).message.toString(), null, 4, null);
                 (it.thisObject as WidgetChatListActions).dismiss()
             }
             val viewRaw = binding.root.findViewById<TextView>(viewRawId)
@@ -165,8 +150,8 @@ class ViewRaw : Plugin() {
             val context = linearLayout.context
 
             linearLayout.addView(TextView(context, null, 0, R.i.UiKit_Settings_Item_Icon).apply {
-                id = copyRawId
-                text = "Copy Raw"
+                id = shareRawId
+                text = "Share Raw"
                 context.getDrawable(R.e.ic_copy_24dp)?.run {
                     mutate()
                     setTint(ColorCompat.getThemedColor(context, R.b.colorInteractiveNormal))
